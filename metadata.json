@@ -1,0 +1,6 @@
+{
+  "name": "LAB HUB",
+  "description": "Hệ thống quản lý mượn — trả thiết bị phòng thực hành",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
