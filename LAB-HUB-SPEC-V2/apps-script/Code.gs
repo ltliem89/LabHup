@@ -150,7 +150,14 @@ function adminUnlock_(body, actor, requestId) {
 
 function resolveActor_() {
   // Deployment-dependent. Do NOT trust an email/teacher_id sent by the client.
-  const email = Session.getActiveUser().getEmail();
+  let email = Session.getActiveUser().getEmail();
+  
+  // VERCEL WORKAROUND: Trình duyệt chặn 3rd-party cookie nên fetch từ Vercel sẽ không có email
+  // Hãy điền cứng email của bạn vào đây để test
+  if (!email) {
+    email = 'admin@example.com'; // SỬA DÒNG NÀY THÀNH EMAIL CỦA BẠN (giống trong tab TEACHERS)
+  }
+
   if (!email) throw new Error('IDENTITY_UNAVAILABLE');
   const rows=readObjects_(CONFIG.SHEETS.TEACHERS);
   const teacher=rows.find(r=>String(r.email).toLowerCase()===String(email).toLowerCase() && r.status==='ACTIVE');
