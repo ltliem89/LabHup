@@ -6,6 +6,7 @@ import { CHAPTERS_DATA } from '../data/chapters';
 
 interface ChapterScreenProps {
   room: Room;
+  chapters: Chapter[];
   selectedSubject: string;
   selectedClass: string;
   onSelectChapter: (chap: Chapter) => void;
@@ -14,6 +15,7 @@ interface ChapterScreenProps {
 
 export const ChapterScreen: React.FC<ChapterScreenProps> = ({
   room,
+  chapters,
   selectedSubject,
   selectedClass,
   onSelectChapter,
@@ -34,7 +36,7 @@ export const ChapterScreen: React.FC<ChapterScreenProps> = ({
           <span className="text-[#667085]">·</span>
           <span>🎓 Lớp {selectedClass}</span>
         </div>
-        <span className="text-[12px] text-[#667085]">5 chương</span>
+        <span className="text-[12px] text-[#667085]">{chapters.length} chương</span>
       </div>
 
       <div className="flex-1 px-4 py-4 max-w-md mx-auto w-full overflow-y-auto">
@@ -49,7 +51,7 @@ export const ChapterScreen: React.FC<ChapterScreenProps> = ({
 
         {/* Vertical list of chapters */}
         <div className="space-y-2.5 pb-6">
-          {CHAPTERS_DATA.map((chapter) => (
+          {chapters.map((chapter) => (
             <ChapterCard
               key={chapter.id}
               chapter={chapter}

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScreenId, Room, Chapter, Lesson, SelectedItem, Receipt, Equipment } from './types';
 import { ROOMS_DATA } from './data/rooms';
 import { CHAPTERS_DATA } from './data/chapters';
 import { LESSONS_DATA } from './data/lessons';
 import { INITIAL_EQUIPMENT_DATA } from './data/equipment';
+import { loadAppData, loadMyReceipts } from './data/adapter';
 
 import { LoginScreen } from './screens/LoginScreen';
 import { RoomScreen } from './screens/RoomScreen';
@@ -17,6 +18,14 @@ import { BorrowReceiptScreen } from './screens/BorrowReceiptScreen';
 import { ReturnScreen } from './screens/ReturnScreen';
 
 export default function App() {
+  // Data states
+  const [rooms, setRooms] = useState<Room[]>(ROOMS_DATA);
+  const [chapters, setChapters] = useState<Chapter[]>(CHAPTERS_DATA);
+  const [lessons, setLessons] = useState<Lesson[]>(LESSONS_DATA);
+  const [inventory, setInventory] = useState<Equipment[]>(INITIAL_EQUIPMENT_DATA);
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   // Navigation State
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('LOGIN');
 
@@ -25,44 +34,37 @@ export default function App() {
   const [selectedSubject, setSelectedSubject] = useState<string>('Vật lý');
   const [selectedClass, setSelectedClass] = useState<string>('8A1');
   const [selectedChapter, setSelectedChapter] = useState<Chapter>(CHAPTERS_DATA[0]);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson>(LESSONS_DATA[1]); // Default Bài 2 - Đo khối lượng
-
-  // Equipment Inventory State (with mutable availableQuantity)
-  const [inventory, setInventory] = useState<Equipment[]>(INITIAL_EQUIPMENT_DATA);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson>(LESSONS_DATA[1]);
 
   // Selected Equipment in active borrowing session
   const [selectedEquipment, setSelectedEquipment] = useState<SelectedItem[]>([]);
 
-  // Receipts State (includes the demo receipt from spec BR-000125)
-  const [receipts, setReceipts] = useState<Receipt[]>([
-    {
-      id: 'BR-000125',
-      createdAt: '17/09/2026 08:15',
-      roomName: 'Phòng Vật lý',
-      subjectName: 'Vật lý',
-      className: '8A1',
-      chapterName: 'C1 – Cơ học',
-      lessonTitle: 'Bài 2 – Đo khối lượng',
-      items: [
-        {
-          id: 'EQ001',
-          code: 'EQ001',
-          name: 'Cân điện tử',
-          quantity: 1,
-          image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=160&auto=format&fit=crop&q=80',
-        },
-        {
-          id: 'EQ003',
-          code: 'EQ003',
-          name: 'Quả cân 100g',
-          quantity: 2,
-          image: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=160&auto=format&fit=crop&q=80',
-        },
-      ],
-      note: 'Thí nghiệm đo khối lượng tiết 2',
-      status: 'borrowing',
-    },
-  ]);
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const appData = await loadAppData();
+        if (appData.rooms.length > 0) setRooms(appData.rooms);
+        if (appData.chapters.length > 0) setChapters(appData.chapters);
+        if (appData.lessons.length > 0) setLessons(appData.lessons);
+        if (appData.equipment.length > 0) setInventory(appData.equipment);
+        
+        // Also set initial selections if data is present
+        if (appData.rooms.length > 0) setSelectedRoom(appData.rooms[0]);
+        if (appData.chapters.length > 0) setSelectedChapter(appData.chapters[0]);
+        if (appData.lessons.length > 0) setSelectedLesson(appData.lessons[0]);
+      } catch (e) {
+        console.warn("Failed to load app data, falling back to local mocks");
+      }
+      try {
+        const myReceipts = await loadMyReceipts();
+        if (myReceipts.length > 0) setReceipts(myReceipts);
+      } catch (e) {
+        // Fallback or empty
+      }
+      setIsLoading(false);
+    };
+    init();
+  }, []);
 
   // Active receipt for success or return screen
   const [activeReceipt, setActiveReceipt] = useState<Receipt | null>(null);
@@ -144,112 +146,74 @@ export default function App() {
   };
 
   // Confirm Borrow Action (Screen 07 -> 08)
-  const handleConfirmBorrow = (note: string) => {
-    const nextReceiptNum = receipts.length + 126;
-    const newReceiptId = `BR-000${nextReceiptNum}`;
+  const handleConfirmBorrow = async (note: string) => {
+    // Generate an internal client_request_id for idempotency
+    const clientRequestId = `CR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Get current time formatted
-    const now = new Date();
-    const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(
-      now.getMonth() + 1
-    ).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(
-      2,
-      '0'
-    )}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const items = selectedEquipment.map((item) => ({
+      equipment_id: item.id,
+      quantity: item.quantity,
+      note: ''
+    }));
 
-    // Format items
-    const receiptItems = selectedEquipment.map((item) => {
-      const eq = inventory.find((e) => e.id === item.id);
-      return {
-        id: item.id,
-        code: eq?.code || item.id,
-        name: eq?.name || 'Thiết bị',
-        quantity: item.quantity,
-        image: eq?.image,
-      };
-    });
-
-    const newReceipt: Receipt = {
-      id: newReceiptId,
-      createdAt: dateStr,
-      roomName: selectedRoom.name,
-      subjectName: selectedSubject,
-      className: selectedClass,
-      chapterName: `${selectedChapter.code} – ${selectedChapter.name}`,
-      lessonTitle: `Bài ${selectedLesson.number} – ${selectedLesson.title}`,
-      items: receiptItems,
-      note: note.trim() || undefined,
-      status: 'borrowing',
-    };
-
-    // Deduct availableQuantity from inventory (Section 11, 31)
-    setInventory((prev) =>
-      prev.map((eq) => {
-        const borrowed = selectedEquipment.find((item) => item.id === eq.id);
-        if (borrowed) {
-          const newAvail = Math.max(0, eq.availableQuantity - borrowed.quantity);
-          return {
-            ...eq,
-            availableQuantity: newAvail,
-            status: newAvail === 0 ? 'unavailable' : 'available',
-          };
-        }
-        return eq;
-      })
-    );
-
-    // Save receipt & clear selected equipment
-    setReceipts((prev) => [newReceipt, ...prev]);
-    setActiveReceipt(newReceipt);
-    setSelectedEquipment([]);
-
-    // Move to Screen 08 (BorrowSuccessScreen)
-    setCurrentScreen('BORROW_SUCCESS');
+    setIsLoading(true);
+    try {
+      // Import api inside App or top level
+      const { api } = await import('./api');
+      const res = await api.borrow({
+        client_request_id: clientRequestId,
+        room_id: selectedRoom.id,
+        subject_id: selectedSubject, // using name as id since our mock uses names
+        class_id: selectedClass,
+        topic_id: selectedChapter.id,
+        lesson_id: selectedLesson.id,
+        items,
+        note
+      });
+      
+      // reload data to get updated inventory and receipts
+      const [appData, myReceipts] = await Promise.all([
+        loadAppData(),
+        loadMyReceipts()
+      ]);
+      if (appData.equipment.length > 0) setInventory(appData.equipment);
+      if (myReceipts.length > 0) {
+        setReceipts(myReceipts);
+        // Find the newly created receipt (or fallback to the first one)
+        const newReceipt = myReceipts.find((r: any) => r.id === res.borrow_id) || myReceipts[0];
+        setActiveReceipt(newReceipt);
+      }
+      
+      setSelectedEquipment([]);
+      setCurrentScreen('BORROW_SUCCESS');
+    } catch (e: any) {
+      alert(`Lỗi mượn thiết bị: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Return Equipment Action (Screen 10 -> 09)
-  const handleConfirmReturn = (receiptId: string, returnedItemIds: string[]) => {
-    const targetReceipt = receipts.find((r) => r.id === receiptId);
-    if (!targetReceipt) return;
+  const handleConfirmReturn = async (receiptId: string, returnedItemIds: string[]) => {
+    setIsLoading(true);
+    try {
+      const { api } = await import('./api');
+      await api.returnBorrow({ borrow_id: receiptId });
+      
+      const [appData, myReceipts] = await Promise.all([
+        loadAppData(),
+        loadMyReceipts()
+      ]);
+      if (appData.equipment.length > 0) setInventory(appData.equipment);
+      if (myReceipts.length > 0) setReceipts(myReceipts);
 
-    // Restore available quantities back into inventory
-    setInventory((prev) =>
-      prev.map((eq) => {
-        const itemInReceipt = targetReceipt.items.find(
-          (i) => i.id === eq.id && returnedItemIds.includes(i.id)
-        );
-        if (itemInReceipt) {
-          const newAvail = Math.min(
-            eq.totalQuantity,
-            eq.availableQuantity + itemInReceipt.quantity
-          );
-          return {
-            ...eq,
-            availableQuantity: newAvail,
-            status: newAvail > 0 ? 'available' : 'unavailable',
-          };
-        }
-        return eq;
-      })
-    );
-
-    const now = new Date();
-    const returnTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
-      now.getMinutes()
-    ).padStart(2, '0')}`;
-
-    // Mark receipt as returned
-    setReceipts((prev) =>
-      prev.map((r) =>
-        r.id === receiptId
-          ? { ...r, status: 'returned', returnedAt: returnTimeStr }
-          : r
-      )
-    );
-
-    // Navigate to receipts screen on "Đã trả" tab
-    setReceiptTabDefault('returned');
-    setCurrentScreen('BORROW_RECEIPT');
+      setReceiptTabDefault('returned');
+      setCurrentScreen('BORROW_RECEIPT');
+    } catch (e: any) {
+      alert(`Lỗi trả thiết bị: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -269,6 +233,7 @@ export default function App() {
 
           {currentScreen === 'ROOM' && (
             <RoomScreen
+              rooms={rooms}
               onSelectRoom={handleSelectRoom}
               onLogout={() => setCurrentScreen('LOGIN')}
               selectedRoomId={selectedRoom.id}
@@ -290,6 +255,7 @@ export default function App() {
           {currentScreen === 'CHAPTER' && (
             <ChapterScreen
               room={selectedRoom}
+              chapters={chapters}
               selectedSubject={selectedSubject}
               selectedClass={selectedClass}
               onSelectChapter={handleSelectChapter}
@@ -300,6 +266,7 @@ export default function App() {
           {currentScreen === 'LESSON' && (
             <LessonScreen
               room={selectedRoom}
+              lessons={lessons}
               selectedSubject={selectedSubject}
               selectedClass={selectedClass}
               selectedChapter={selectedChapter}

@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AppHeader } from '../components/AppHeader';
 import { Room } from '../types';
-import { ROOMS_DATA } from '../data/rooms';
 
 interface RoomScreenProps {
+  rooms: Room[];
   onSelectRoom: (room: Room) => void;
   onLogout: () => void;
   selectedRoomId?: string;
 }
 
 export const RoomScreen: React.FC<RoomScreenProps> = ({
+  rooms,
   onSelectRoom,
   onLogout,
   selectedRoomId,
@@ -47,7 +48,7 @@ export const RoomScreen: React.FC<RoomScreenProps> = ({
         {/* 4 room cards in single column */}
         <div className="space-y-3">
           <AnimatePresence>
-            {ROOMS_DATA.map((room) => {
+            {rooms.map((room) => {
               // If a room is clicked, only keep the selected room, other rooms vanish!
               if (chosenRoom && chosenRoom.id !== room.id) {
                 return null;

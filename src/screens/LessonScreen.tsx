@@ -6,6 +6,7 @@ import { LESSONS_DATA } from '../data/lessons';
 
 interface LessonScreenProps {
   room: Room;
+  lessons: Lesson[];
   selectedSubject: string;
   selectedClass: string;
   selectedChapter: Chapter;
@@ -14,6 +15,7 @@ interface LessonScreenProps {
 }
 
 export const LessonScreen: React.FC<LessonScreenProps> = ({
+  lessons,
   selectedSubject,
   selectedClass,
   selectedChapter,
@@ -21,7 +23,7 @@ export const LessonScreen: React.FC<LessonScreenProps> = ({
   onBack,
 }) => {
   // Filter lessons for this chapter (or show all available lessons for C1)
-  const lessons = LESSONS_DATA.filter(
+  const filteredLessons = lessons.filter(
     (l) => l.chapterId === selectedChapter.id || selectedChapter.id === 'C1'
   );
 
@@ -54,7 +56,7 @@ export const LessonScreen: React.FC<LessonScreenProps> = ({
 
         {/* 1 column list of lessons */}
         <div className="space-y-2 pb-6">
-          {lessons.map((lesson) => (
+          {filteredLessons.map((lesson) => (
             <LessonRow
               key={lesson.id}
               lesson={lesson}
